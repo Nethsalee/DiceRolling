@@ -138,7 +138,7 @@ def roll():
     if session['rolls_left'] <= 0:
         return jsonify({'error': 'No rolls left. Choose a category.'}), 400
 
-    dice = session['dice']
+    dice = list(session['dice'])
     held = session['held']
     for i in range(5):
         if not held[i]:
@@ -147,6 +147,7 @@ def roll():
     session['dice'] = dice
     session['rolls_left'] -= 1
     session['has_rolled'] = True
+    session.modified = True
 
     return jsonify(get_public_state())
 
@@ -159,9 +160,10 @@ def toggle_hold():
         return jsonify({'error': 'Roll first'}), 400
 
     index = request.get_json().get('index')
-    held = session['held']
+    held = list(session['held'])
     held[index] = not held[index]
     session['held'] = held
+    session.modified = True
 
     return jsonify(get_public_state())
 
@@ -175,13 +177,17 @@ def score():
 
     category = request.get_json().get('category')
     current = session['current_player']
-    scorecard = session['scorecards'][current]
+
+    # Work on a fresh copy so Flask detects the change
+    scorecards = [dict(sc) for sc in session['scorecards']]
+    scorecard = scorecards[current]
 
     if category not in CATEGORIES or scorecard[category] is not None:
         return jsonify({'error': 'Invalid or already used category'}), 400
 
     scorecard[category] = score_category(session['dice'], category)
-    session['scorecards'][current] = scorecard
+    scorecards[current] = scorecard
+    session['scorecards'] = scorecards
 
     all_done = all(
         all(v is not None for v in sc.values())
@@ -199,6 +205,7 @@ def score():
         session['rolls_left'] = 3
         session['has_rolled'] = False
 
+    session.modified = True
     return jsonify(get_public_state())
 
 
